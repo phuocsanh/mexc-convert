@@ -10,6 +10,7 @@ export const createSignature = (
   apiSecret: string
 ): string => {
   const ts = Date.now();
+  console.log("🚀 ~ ts createSignature:", ts);
   const paramsObject: { [key: string]: string } = {};
 
   // Xử lý tham số để loại bỏ `signature` và `timestamp`, đồng thời lọc các tham số bị tắt hoặc trống

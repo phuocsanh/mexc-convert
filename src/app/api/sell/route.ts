@@ -5,12 +5,25 @@ import { createSignature } from "@/ultil/createSignature";
 export async function POST(req: NextRequest) {
   try {
     const { symbol, quantity, price, apiSecret, accesskey } = await req.json();
-    const params: Record<string, any> = {
+
+    const batchOrders = Array.from({ length: 1 }).map(() => ({
       symbol: symbol + "USDT",
-      side: "BUY",
+      side: "SELL",
       type: "LIMIT",
       quantity,
       price,
+    }));
+    // const params: Record<string, any> = {
+    //   batchOrders: JSON.stringify(batchOrders),
+    // };
+    const params: Record<string, any> = {
+      batchOrders: JSON.stringify({
+        symbol: symbol + "USDT",
+        side: "SELL",
+        type: "LIMIT",
+        quantity,
+        price,
+      }),
     };
 
     const parametersArray = Object.keys(params).map((key: any) => ({
@@ -20,11 +33,17 @@ export async function POST(req: NextRequest) {
     }));
 
     const response = await axios.post(
-      "https://api.mexc.com/api/v3/order",
+      "https://api.mexc.com/api/v3/batchOrders",
       null,
       {
         params: {
-          ...params,
+          batchOrders: {
+            symbol: symbol + "USDT",
+            side: "SELL",
+            type: "LIMIT",
+            quantity,
+            price,
+          },
           timestamp: Date.now(),
           signature: createSignature(parametersArray, apiSecret),
         },
