@@ -7,12 +7,12 @@ export default function Home() {
     <main className="flex flex-col py-10 px-12">
       <div className="flex flex-row justify-between">
         <BuySellComponent />
-        <BuySellComponent />
+        {/* <BuySellComponent /> */}
       </div>
-      <div className="flex flex-row justify-between mt-9">
+      {/* <div className="flex flex-row justify-between mt-9">
         <BuySellComponent />
         <BuySellComponent />
-      </div>
+      </div> */}
     </main>
   );
 }
