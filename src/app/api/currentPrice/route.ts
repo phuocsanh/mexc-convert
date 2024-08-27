@@ -6,6 +6,10 @@ export async function GET(req: NextRequest) {
     const symbol = req.nextUrl.searchParams.get("symbol");
     const accesskey = req.nextUrl.searchParams.get("accesskey");
 
+    if (!symbol || !accesskey) {
+      return;
+    }
+
     const response = await axios.get("https://api.mexc.com/api/v3/avgPrice", {
       params: {
         symbol: symbol + "USDT",
