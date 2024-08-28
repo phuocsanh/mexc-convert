@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
 
     const response = await axios.get("https://api.mexc.com/api/v3/openOrders", {
       params: {
-        symbol: symbol + "USDT",
+        ...params,
         timestamp: Date.now(),
         signature: createSignature(parametersArray, apiSecret),
       },

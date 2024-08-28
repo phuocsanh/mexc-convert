@@ -10,17 +10,20 @@ export async function GET(req: NextRequest) {
       return;
     }
 
-    const response = await axios.get("https://api.mexc.com/api/v3/avgPrice", {
-      params: {
-        symbol: symbol + "USDT",
-        // timestamp: Date.now(),
-        // signature: createSignature(parametersArray, apiSecret),
-      },
-      headers: {
-        "Content-Type": "application/json",
-        "X-MEXC-APIKEY": accesskey,
-      },
-    });
+    const response = await axios.get(
+      "https://api.mexc.com/api/v3/ticker/price",
+      {
+        params: {
+          symbol: symbol,
+          // timestamp: Date.now(),
+          // signature: createSignature(parametersArray, apiSecret),
+        },
+        headers: {
+          "Content-Type": "application/json",
+          "X-MEXC-APIKEY": accesskey,
+        },
+      }
+    );
 
     return NextResponse.json(response.data);
   } catch (error: any) {

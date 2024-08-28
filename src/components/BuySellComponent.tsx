@@ -6,6 +6,7 @@ import LoadingOverlay from "@/components/LoadingOverlay";
 import { containsDigitGreaterThanOrEqualTo2 } from "@/ultil";
 
 const BuySellComponent = () => {
+  const [accountName, setAccountName] = useState("");
   const [start, setStart] = useState(false);
   const [responseOrderData, setResponseOrderData] = useState<any>(null);
   const [idOrderBuy, setIdOrderBuy] = useState(null);
@@ -23,7 +24,52 @@ const BuySellComponent = () => {
   const [priceSell, setPriceSell] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const getAccountInFo = async () => {
+  const [network, setNetwork] = useState("");
+  const [addressWallet, setAddressWallet] = useState("");
+  const [quantityUSDTWithdraw, setQuantityUSDTWithdraw] = useState("");
+  const [withdrawStatus, setWithdrawStatus] = useState("");
+  const [historyConvertMX, setHistoryConvertMX] = useState([]);
+  const [accountInFo, setAccountInfo] = useState<any>({});
+
+  const reload = () => {
+    setAccountName("");
+    setResponseOrderData(null);
+    setStart(false);
+    setIsBtnBuy(true);
+    setIsBtnSell(true);
+    setApiSecret("");
+    setAccesskey("");
+    setSymbolSearch("");
+    setSymbol("");
+    setQuantity("");
+    setPrice("");
+    setQuantityOrderSell([]);
+    setQuantityUSDTWithdraw("");
+    setWithdrawStatus("");
+    setHistoryConvertMX([]);
+    setAccountInfo({});
+    // setNetwork('')
+  };
+  function giamHaiDonVi(x: string): string {
+    // Xác định số chữ số thập phân của x
+    const decimalPlaces = x.toString().split(".")[1]?.length || 0;
+    // Tạo giá trị trừ đi dựa trên vị trí của chữ số thập phân cuối cùng
+    const subtractValue = 2 * Math.pow(10, -decimalPlaces);
+    // Trừ đi giá trị này từ số ban đầu
+    const convert = +x - subtractValue;
+
+    console.log("giamHaiDonVi", convert.toString().slice(0, x.length));
+
+    return convert.toString().slice(0, x.length);
+  }
+
+  // useEffect(() => {
+  //   giamHaiDonVi("3.4");
+  //   giamHaiDonVi("3.5229");
+  //   giamHaiDonVi("7.522");
+  // }, []);
+
+  const getAccountInFo = async (inUseEffect?: boolean) => {
     try {
       const response = await axios.get("/api/accountInfo", {
         params: {
@@ -32,92 +78,114 @@ const BuySellComponent = () => {
         },
       });
       if (response.status !== 200) return null;
+      if (inUseEffect) {
+        setAccountInfo(response.data);
+      }
       return response.data;
     } catch (error) {}
   };
 
   const getPriceCoinAndCovertMX = async () => {
+    setFocus(true);
     try {
+      setLoading(true);
+
       if (accesskey && symbolSearch && apiSecret) {
-        const response = await axios.get("/api/currentPrice", {
-          params: {
-            symbol: symbol.toUpperCase(),
-            accesskey,
-            apiSecret,
-          },
-        });
-        console.log("🚀 ~ getPriceCoinAndCovertMX ~ response:", response);
-        if (response.status === 200 && response.data.price) {
-          const isGreaterOne = containsDigitGreaterThanOrEqualTo2(
-            response.data.price
-          );
-          if (isGreaterOne) {
-            convertMX();
-          }
-        }
-        return response.data;
-      }
-    } catch (error) {
-      console.log("🚀 ~ getPriceCoin ~ error:", error);
-    }
-  };
+        for (let i = 0; i <= 10; i++) {
+          const response = await axios.get("/api/currentPrice", {
+            params: {
+              symbol: symbol.toUpperCase() + "USDT",
+              accesskey,
+              apiSecret,
+            },
+          });
 
-  const convertMX = async () => {
-    if (!accesskey || !apiSecret) {
-      return;
-    }
-
-    try {
-      const accountInfo = await getAccountInFo();
-
-      if (accountInfo?.balances && accountInfo?.balances.length) {
-        const currentCoin = accountInfo?.balances.find(
-          (balance: any, _: any) => balance.asset === symbolSearch.toUpperCase()
-        );
-        if (!currentCoin) {
-          return;
-        }
-        await axios.post("/api/convertMX", {
-          symbol: symbol.toUpperCase(),
-          apiSecret,
-          accesskey,
-        });
-
-        const responseOrderCurrent = await axios.get("/api/order/openOrders", {
-          params: {
-            symbol: symbolSearch.toUpperCase(),
-            accesskey,
-            apiSecret,
-          },
-        });
-
-        if (responseOrderCurrent.status === 200 && responseOrderCurrent.data) {
-          if (responseOrderCurrent?.data?.length > 0) {
-            const filterOrderSellItem = responseOrderCurrent.data.filter(
-              (orderSell: any, _: any) => orderSell?.side === "SELL"
+          if (response.status === 200 && response.data.price) {
+            const isGreaterOne = containsDigitGreaterThanOrEqualTo2(
+              response.data.price
             );
 
-            if (filterOrderSellItem.length > 0) {
-              const responseOrderDelete = await axios.delete("/api/order", {
-                params: {
-                  orderId: filterOrderSellItem?.[0]?.orderId,
-                  symbol: symbolSearch.toUpperCase(),
-                  accesskey,
-                  apiSecret,
-                },
-              });
+            if (isGreaterOne) {
+              const accountInfo = await getAccountInFo();
 
-              if (responseOrderDelete.status === 200) {
-                convertMX();
+              if (accountInfo?.balances && accountInfo?.balances.length) {
+                const currentCoin = accountInfo?.balances.find(
+                  (balance: any, _: any) =>
+                    balance.asset === symbolSearch.toUpperCase()
+                );
+
+                console.log("🚀 ~ convertMX ~ currentCoin:", currentCoin);
+
+                if (!currentCoin) {
+                  return alert("Đã đổi hết coin!");
+                }
+
+                if (currentCoin.free === "0") {
+                  const responseOrderCurrent = await axios.get("/api/order", {
+                    params: {
+                      symbol: symbolSearch.toUpperCase(),
+                      accesskey,
+                      apiSecret,
+                    },
+                  });
+
+                  console.log(
+                    "🚀 ~ convertMX ~ responseOrderCurrent:",
+                    responseOrderCurrent
+                  );
+
+                  if (responseOrderCurrent.status === 400) {
+                    return alert("Get lệnh hiện tại fail");
+                  }
+
+                  if (
+                    responseOrderCurrent.status === 200 &&
+                    responseOrderCurrent.data
+                  ) {
+                    if (responseOrderCurrent?.data?.length > 0) {
+                      const filterOrderSellItem =
+                        responseOrderCurrent.data.filter(
+                          (orderSell: any, _: any) => orderSell?.side === "SELL"
+                        );
+
+                      if (filterOrderSellItem.length > 0) {
+                        const responseOrderDelete = await axios.delete(
+                          "/api/order",
+                          {
+                            params: {
+                              orderId: filterOrderSellItem?.[0]?.orderId,
+                              symbol: symbolSearch.toUpperCase(),
+                              accesskey,
+                              apiSecret,
+                            },
+                          }
+                        );
+                        console.log(
+                          "🚀 ~ convertMX ~ responseOrderDelete:",
+                          responseOrderDelete
+                        );
+                      } else {
+                        console.log("🚀 ~ convertMX ~ else: 162");
+                        return;
+                      }
+                    }
+                  }
+                } else {
+                  await axios.post("/api/convertMX", {
+                    symbol: symbol.toUpperCase(),
+                    apiSecret,
+                    accesskey,
+                  });
+                }
               }
-            } else {
-              return;
             }
           }
         }
       }
     } catch (error) {
-      console.log("🚀 ~ convertMX ~ error:", error);
+      console.log("🚀 ~ getPriceCoin ~ error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -148,98 +216,27 @@ const BuySellComponent = () => {
       return;
     }
     if (accesskey && apiSecret && symbolSearch) {
+      const getHistoryConvertMX = async () => {
+        const responseHistoryCovertMX = await axios.get("/api/convertXM", {
+          params: {
+            accesskey,
+            apiSecret,
+          },
+        });
+
+        if (responseHistoryCovertMX.status !== 200) {
+          return;
+        }
+        setHistoryConvertMX(responseHistoryCovertMX.data);
+      };
+
       setInterval(() => {
         getCurrentOrder();
-
-        const autoSellCoinAndSellMX = async () => {
-          const accountInfo = await getAccountInFo();
-          console.log("🚀 ~ autoSellCoinAndSellMX ~ accountInfo:", accountInfo);
-
-          if (accountInfo?.balances?.length) {
-            const isMXCoin = accountInfo?.balances.find(
-              (balance: any, _: any) => balance.asset === "MX"
-            );
-            console.log("🚀 ~ autoSellCoinAndSellMX ~ isMXCoin:", isMXCoin);
-            const currentCoin = accountInfo?.balances.find(
-              (balance: any, _: any) =>
-                balance.asset === symbolSearch.toUpperCase()
-            );
-            console.log(
-              "🚀 ~ autoSellCoinAndSellMX ~ currentCoin:",
-              currentCoin
-            );
-            if (currentCoin) {
-              handleSellCoin();
-            }
-            // if (isMXCoin) {
-            //   try {
-            //     const responseMXPrice = await axios.get("/api/currentPrice", {
-            //       params: {
-            //         symbol: "MX",
-            //         accesskey,
-            //         apiSecret,
-            //       },
-            //     });
-            //     console.log(
-            //       "🚀 ~ autoSellCoinAndSellMX ~ responseMXPrice:",
-            //       responseMXPrice
-            //     );
-            //     if (
-            //       responseMXPrice.status !== 200 ||
-            //       !responseMXPrice?.data?.price
-            //     )
-            //       return;
-            //     if (Number(responseMXPrice?.data?.price) <= 3.0) {
-            //       return alert("Giá MX nhỏ hơn 3.0 USDT vui lòng kiểm tra lại");
-            //     }
-            //     if (!isMXCoin?.free) {
-            //       return alert("Số lượng MX không có");
-            //     }
-            //     console.log(
-            //       "🚀 ~ autoSellCoinAndSellMX ~ isMXCoin?.free:",
-            //       isMXCoin?.free
-            //     );
-
-            //     let decimalPlaces: number = 2;
-            //     let factor: number = Math.pow(10, decimalPlaces);
-
-            //     // Làm tròn xuống số
-            //     let roundedNumber: number =
-            //       Math.floor(isMXCoin?.free * factor) / factor;
-            //     console.log(
-            //       "🚀 ~ autoSellCoinAndSellMX ~ roundedNumber:",
-            //       roundedNumber
-            //     );
-
-            //     const response = await axios.post("/api/sell", {
-            //       symbol: "MX",
-            //       quantity: roundedNumber.toString(),
-            //       price: responseMXPrice?.data?.price,
-            //       apiSecret,
-            //       accesskey,
-            //     });
-            //     if (response) {
-            //     }
-            //   } catch (error: any) {
-            //   } finally {
-            //     setLoading(false);
-            //   }
-            // }
-          }
-        };
-
-        autoSellCoinAndSellMX();
-      }, 5000);
+        getHistoryConvertMX();
+        getAccountInFo(true);
+      }, 2000);
     }
-  }, [
-    isBtnSell,
-    accesskey,
-    apiSecret,
-    symbolSearch,
-    start,
-    quantitySell,
-    priceSell,
-  ]);
+  }, [isBtnSell, accesskey, apiSecret, symbolSearch, start]);
 
   useEffect(() => {
     if (!start) {
@@ -262,23 +259,9 @@ const BuySellComponent = () => {
 
       setInterval(() => {
         getOrderById();
-      }, 5000);
+      }, 2500);
     }
   }, [idOrderBuy, start]);
-
-  useEffect(() => {
-    if (!start) {
-      return;
-    }
-    if (symbolSearch.length > 0) {
-      setInterval(() => {
-        if (!accesskey || !symbolSearch || !apiSecret) {
-          return;
-        }
-        getPriceCoinAndCovertMX();
-      }, 5000);
-    }
-  }, [accesskey, symbolSearch, apiSecret, start]);
 
   useEffect(() => {
     if (symbol.length > 0) {
@@ -289,13 +272,15 @@ const BuySellComponent = () => {
   }, [symbol]);
 
   const handleBuyCoin = async () => {
+    if (!start) {
+      return alert("Vui lòng nhấn START trước!");
+    }
+    setLoading(true);
     setFocus(true);
     if (!accesskey || !apiSecret || !price || !quantity || !symbol) {
       return alert("Vui lòng nhập đử thông tin!");
     }
     try {
-      setLoading(true);
-
       const response = await axios.post("/api/order", {
         symbol: symbol.toUpperCase(),
         quantity,
@@ -311,6 +296,7 @@ const BuySellComponent = () => {
         alert(JSON.stringify(response.data));
       }
     } catch (error: any) {
+      setLoading(false);
       alert(error.response ? error.response.data.error : error.message);
     } finally {
       setLoading(false);
@@ -318,14 +304,14 @@ const BuySellComponent = () => {
   };
 
   const handleSellCoin = async () => {
-    setFocus(true);
-
+    if (!start) {
+      return alert("Vui lòng nhấn START trước!");
+    }
     if (!accesskey || !apiSecret || !priceSell || !quantitySell || !symbol) {
       return;
     }
     try {
       setLoading(true);
-
       const response = await axios.post("/api/sell", {
         symbol: symbol.toUpperCase(),
         quantity: quantitySell,
@@ -344,20 +330,186 @@ const BuySellComponent = () => {
     }
   };
 
+  const withdrawUsdtToWallet = async () => {
+    setFocus(true);
+
+    if (!start) {
+      return alert("Vui lòng nhấn START trước!");
+    }
+    try {
+      setLoading(true);
+
+      const response = await axios.post("/api/withdrawUsdt", {
+        symbol: symbol.toUpperCase(),
+        network,
+        addressWallet,
+        amount: quantityUSDTWithdraw,
+        apiSecret,
+        accesskey,
+      });
+
+      if (response.status !== 200) {
+        setLoading(false);
+        setWithdrawStatus("Rút thất bại");
+        return alert("Rút tiền không thành công");
+      }
+      setWithdrawStatus("Rút thành công");
+    } catch (error) {
+      console.log("🚀 ~ withdrawUsdtToWal ~ error:", error);
+      setLoading(false);
+      setWithdrawStatus("Rút thất bại");
+      alert("Lỗi Rút tiền không thành công");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sellMX = async () => {
+    try {
+      setLoading(true);
+      const accountInfo = await getAccountInFo();
+
+      if (accountInfo?.balances?.length) {
+        const isMXCoin = accountInfo?.balances.find(
+          (balance: any, _: any) => balance.asset === "MX"
+        );
+        if (!isMXCoin) {
+          return alert("Không tìm thấy MX COIN");
+        }
+        if (isMXCoin) {
+          const responsePriceMxUsdc = await axios.get("/api/currentPrice", {
+            params: {
+              symbol: "MXUSDC",
+              accesskey,
+              apiSecret,
+            },
+          });
+
+          if (
+            responsePriceMxUsdc.status !== 200 ||
+            !responsePriceMxUsdc?.data?.price
+          )
+            return;
+          if (Number(responsePriceMxUsdc?.data?.price) <= 3.0) {
+            return alert("Giá MX nhỏ hơn 3.0 USDT vui lòng kiểm tra lại");
+          }
+          if (!isMXCoin?.free) {
+            return alert("Số lượng MX không có");
+          }
+
+          let decimalPlaces: number = 2;
+          let factor: number = Math.pow(10, decimalPlaces);
+
+          // Làm tròn xuống số
+          let roundedNumber: number =
+            Math.floor(isMXCoin?.free * factor) / factor;
+
+          const responseSellMxUsdc = await axios.post("/api/sell", {
+            symbol: "MXUSDC",
+            quantity: roundedNumber.toString(),
+            price: giamHaiDonVi(responsePriceMxUsdc?.data?.price),
+            apiSecret,
+            accesskey,
+          });
+
+          console.log("🚀 ~ sellMX ~ responseSellMxUsdc:", responseSellMxUsdc);
+
+          if (responseSellMxUsdc.status === 200) {
+            // const response = await axios.post("/api/sell", {
+            //   symbol: "MXUSDT",
+            //   quantity: roundedNumber.toString(),
+            //   price: responseMXPrice?.data?.price,
+            //   apiSecret,
+            //   accesskey,
+            // });
+          }
+        }
+      }
+    } catch (error) {
+      console.log("🚀 ~ sellMX ~ error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div
       className={`flex flex-col ${
         focus ? "bg-sky-950" : "bg-slate-600"
-      }  justify-center  mr-10 w-1/2 pb-10`}
+      }  justify-center  mr-10 w-1/2 pb-5`}
     >
       {loading && <LoadingOverlay />}
       <div className="flex flex-col ml-5 mt-4">
         <div className="px-2 py-1 w-full">
+          <h4 className="mb-2">Account Name</h4>
+
           <div className="flex justify-between">
-            <h4 className="mb-2">Account Name</h4>
+            <input
+              type="text"
+              onFocus={() => setFocus(true)}
+              onBlur={() => setFocus(false)}
+              value={accountName}
+              onChange={(e) => setAccountName(e.target.value)}
+              placeholder="Enter Account Name"
+              className="w-4/5  text-fuchsia-500 px-2  border bg-slate-800 rounded focus:bg-teal-800"
+            />
+            {
+              <button
+                className="px-3 py-2 bg-lime-700 rounded-md"
+                onClick={() => {
+                  reload();
+                }}
+              >
+                {" "}
+                RELOAD
+              </button>
+            }
+          </div>
+        </div>
+        <div className="flex">
+          <div className="px-2 py-1 w-full">
+            <h4 className="mb-2 ">Access Key</h4>
+            <input
+              type="text"
+              onFocus={() => setFocus(true)}
+              onBlur={() => setFocus(false)}
+              value={accesskey}
+              onChange={(e) => setAccesskey(e.target.value)}
+              placeholder="Enter Access Key"
+              className="w-4/5 p-2 border bg-slate-800 rounded focus:bg-teal-800"
+            />
+          </div>
+          <div className="px-2 py-1 w-full ">
+            <h4 className="mb-2">Secret Key</h4>
+            <div className="flex justify-between">
+              <input
+                onFocus={() => setFocus(true)}
+                onBlur={() => setFocus(false)}
+                type="text"
+                value={apiSecret}
+                onChange={(e) => setApiSecret(e.target.value)}
+                placeholder="Enter Secret Key"
+                className="w-4/5 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="px-2 py-2 w-full ">
+          <h4 className="mb-2">Symbol (Tên COIN)</h4>
+          <div className="flex justify-between">
+            <input
+              onFocus={() => setFocus(true)}
+              onBlur={() => setFocus(false)}
+              type="text"
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value)}
+              placeholder="Copy tên coin pass vào (không nhập tay)"
+              className="w-4/5 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
+            />
             {!start ? (
               <button
-                className="p-4 bg-orange-300"
+                className="px-5 py-2  rounded-md bg-orange-300"
                 onClick={() => {
                   if (!symbolSearch || !apiSecret || !accesskey) {
                     return alert("Vui lòng nhập đủ thông tin!");
@@ -372,58 +524,14 @@ const BuySellComponent = () => {
               <p className="p-4 text-orange-300">STARTING</p>
             )}
           </div>
-          <input
-            type="text"
-            onFocus={() => setFocus(true)}
-            onBlur={() => setFocus(false)}
-            placeholder="Enter Account Name"
-            className="w-4/5  text-fuchsia-500 text-2xl p-2 border bg-slate-800 rounded focus:bg-teal-800"
-          />
-        </div>
-        <div className="px-2 py-1 w-full">
-          <h4 className="mb-2 mt-2">Access Key</h4>
-          <input
-            type="text"
-            onFocus={() => setFocus(true)}
-            onBlur={() => setFocus(false)}
-            value={accesskey}
-            onChange={(e) => setAccesskey(e.target.value)}
-            placeholder="Enter Access Key"
-            className="w-4/5 p-2 border bg-slate-800 rounded focus:bg-teal-800"
-          />
-        </div>
-        <div className="px-2 py-2 w-full ">
-          <h4 className="mb-2">Secret Key</h4>
-          <input
-            onFocus={() => setFocus(true)}
-            onBlur={() => setFocus(false)}
-            type="text"
-            value={apiSecret}
-            onChange={(e) => setApiSecret(e.target.value)}
-            placeholder="Enter Secret Key"
-            className="w-4/5 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
-          />
-        </div>
-        <div className="px-2 py-2 w-full ">
-          <h4 className="mb-2">Symbol (Tên COIN)</h4>
-          <input
-            onFocus={() => setFocus(true)}
-            onBlur={() => setFocus(false)}
-            type="text"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            placeholder="Copy tên coin pass vào (không nhập tay)"
-            className="w-4/5 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
-          />
         </div>
       </div>
 
       <div className={`flex flex-row  mr-10`}>
         <div className={` flex flex-col ml-4 w-1/2`}>
-          <div className="mt-2 px-2 py-3 w-full ">
+          <div className=" px-2 py-1 w-full ">
             <h1 className="text-yellow-300">INFO ORDER</h1>
-
-            <h4 className="mt-3 mb-2">Price (Giá COIN)</h4>
+            <h4 className=" mb-2">Price (Giá COIN)</h4>
             <input
               onFocus={() => setFocus(true)}
               onBlur={() => setFocus(false)}
@@ -447,10 +555,11 @@ const BuySellComponent = () => {
             <div className="flex w-4/5  mt-4 flex-row justify-end">
               {isBtnBuy ? (
                 <button
+                  disabled={loading}
                   onClick={handleBuyCoin}
                   className="hover:bg-green-400 w-full  self-end bg-green-600 rounded-md p-3"
                 >
-                  Buy
+                  BUY
                 </button>
               ) : (
                 <div className="flex flex-col">
@@ -460,8 +569,7 @@ const BuySellComponent = () => {
                       <p>Status: {responseOrderData?.status}</p>
                       <span className="text-xl text-cyan-300">
                         BUYED :{" "}
-                        {responseOrderData?.origQuoteOrderQty.slice(0, 7) +
-                          " USDT"}{" "}
+                        {responseOrderData?.origQuoteOrderQty.slice(0, 7)}{" "}
                       </span>
                     </div>
                   )}
@@ -474,11 +582,11 @@ const BuySellComponent = () => {
         <div className="h-full w-2 bg-slate-50 ml-9"></div>
 
         <div className={`flex flex-col ml-4 w-1/2`}>
-          <div className="mt-2 px-2 py-3 w-full ">
+          <div className=" px-2 py-2 w-full ">
             <h1 className="text-yellow-300">
               Name Coin : {symbol.toUpperCase()}
             </h1>
-            <h4 className="mt-3 mb-2">Price (Giá COIN)</h4>
+            <h4 className=" mb-2">Price (Giá COIN)</h4>
             <input
               onFocus={() => setFocus(true)}
               onBlur={() => setFocus(false)}
@@ -518,10 +626,139 @@ const BuySellComponent = () => {
                 SELL
               </button>
               {isBtnSell && (
-                <h4 className="text-rose-600 text-xl mt-4">
+                <h4 className="text-rose-600 text-xl mt-1">
                   Đã đặt bán {quantityOrderSell?.length} lệnh{" "}
                 </h4>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex w-full h-2 bg-white"></div>
+      <div className="px-2">
+        <div className="flex justify-between">
+          <button
+            disabled={loading}
+            className="px-9 py-2 hover:bg-amber-500 bg-amber-600 mt-2 rounded-md"
+            onClick={() => {
+              if (!accesskey || !apiSecret || !symbol || !start) {
+                return alert(
+                  "Vui lòng nhập Assetkey , ApiKey và tên COIN sau đó nhấn START"
+                );
+              }
+              getPriceCoinAndCovertMX();
+            }}
+          >
+            ConvertMX
+          </button>
+
+          <button
+            disabled={loading}
+            className="px-9 py-2 hover:bg-purple-500  bg-purple-600 mt-2 rounded-md"
+            onClick={() => {
+              if (!accesskey || !apiSecret || !symbol || !start) {
+                return alert(
+                  "Vui lòng nhập Assetkey , ApiKey và tên COIN sau đó nhấn START"
+                );
+              }
+              sellMX();
+            }}
+          >
+            SELL MX{" "}
+            {(accountInFo?.balances?.length &&
+              accountInFo?.balances?.find(
+                (balance: any, _: any) => balance?.asset === "MX"
+              ).free) ||
+              "0"}
+          </button>
+        </div>
+        <div className=" flex justify-between">
+          <p className="mt-2">Đã đổi MX: {historyConvertMX.length}</p>
+          <p className="mt-2">
+            USDT HIỆN CÓ:{" "}
+            {(accountInFo?.balances?.length &&
+              accountInFo?.balances?.find(
+                (balance: any, _: any) => balance?.asset === "USDT"
+              ).free) ||
+              "0"}
+          </p>
+
+          <p
+            className={`mt-2 ${
+              withdrawStatus === "Rút thất bại"
+                ? "text-red-500"
+                : withdrawStatus === "Rút thành công"
+                ? "text-lime-500"
+                : " text-orange-500"
+            }`}
+          >
+            Trạng thái rút: {!withdrawStatus ? "chưa" : withdrawStatus}
+          </p>
+        </div>
+        <div>
+          <div className="flex mt-2">
+            <div>
+              <span>{"NETWORK (TÊN MẠNG)"}</span>
+              <input
+                onFocus={() => setFocus(true)}
+                onBlur={() => setFocus(false)}
+                type="text"
+                value={network}
+                onChange={(e) => setNetwork(e.target.value)}
+                placeholder="Enter network"
+                className="w-3/4 mt-2 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
+              />
+            </div>
+            <div>
+              <span>{"ADDRESS (ĐỊA CHỈ VÍ)"}</span>
+              <input
+                onFocus={() => setFocus(true)}
+                onBlur={() => setFocus(false)}
+                type="text"
+                value={addressWallet}
+                onChange={(e) => setAddressWallet(e.target.value)}
+                placeholder="Enter Address"
+                className="w-full mt-2 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
+              />
+            </div>
+          </div>
+          <div className="justify-between w-full flex mt-2">
+            <div>
+              <div className="flex ">
+                <span>{"Quantity USDT (Số tiền muốn rút)"}</span>
+              </div>
+
+              <input
+                onFocus={() => setFocus(true)}
+                onBlur={() => setFocus(false)}
+                type="text"
+                value={quantityUSDTWithdraw}
+                onChange={(e) => setQuantityUSDTWithdraw(e.target.value)}
+                placeholder="Enter quantity"
+                className="w-full mt-2 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
+              />
+            </div>
+            <div className="flex w-1/2 flex-col">
+              <p className="">Tên Acc: {accountName}</p>
+              <button
+                disabled={loading}
+                className="mt-2 px-8 py-3 rounded-md hover:bg-cyan-500 bg-cyan-600"
+                onClick={() => {
+                  if (
+                    !addressWallet ||
+                    !addressWallet ||
+                    !quantityUSDTWithdraw ||
+                    !start
+                  ) {
+                    return alert(
+                      "Vui lòng kiểm tra lại mạng rút, địa chỉ ví hoặc số tiền và đã START!"
+                    );
+                  }
+                  withdrawUsdtToWallet();
+                }}
+              >
+                Chuyển USDT
+              </button>
             </div>
           </div>
         </div>

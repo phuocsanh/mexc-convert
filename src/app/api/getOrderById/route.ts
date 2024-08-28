@@ -3,7 +3,6 @@ import axios from "axios";
 import { createSignature } from "@/ultil/createSignature";
 
 export async function GET(req: NextRequest) {
-  console.log("🚀 ~ GET ~ GET:", "getorderbyid");
   try {
     const symbol = req.nextUrl.searchParams.get("symbol");
     const accesskey = req.nextUrl.searchParams.get("accesskey");
@@ -27,8 +26,7 @@ export async function GET(req: NextRequest) {
 
     const response = await axios.get("https://api.mexc.com/api/v3/order", {
       params: {
-        symbol: symbol + "USDT",
-        orderId,
+        ...params,
         timestamp: Date.now(),
         signature: createSignature(parametersArray, apiSecret),
       },
