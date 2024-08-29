@@ -349,13 +349,16 @@ const BuySellComponent = () => {
             return alert("Không tìm thấy MX COIN");
           }
           if (isMXCoin) {
-            const responsePriceMxUsdc = await axios.get("/api/currentPrice", {
-              params: {
-                symbol: "MXUSDC",
-                accesskey,
-                apiSecret,
-              },
-            });
+            const responsePriceMxUsdc = await axios.get(
+              "/api/currentPrice24hr",
+              {
+                params: {
+                  symbol: "MXUSDC",
+                  accesskey,
+                  apiSecret,
+                },
+              }
+            );
 
             if (
               responsePriceMxUsdc.status !== 200 ||
@@ -377,53 +380,47 @@ const BuySellComponent = () => {
             let roundedNumber: number =
               Math.floor(isMXCoin?.free * factor) / factor;
 
-            const responseSellMxUsdc = await axios.post("/api/sellMx", {
-              symbol: "MXUSDC",
-              quantity: roundedNumber.toString(),
-              price: giamHaiDonVi(responsePriceMxUsdc?.data?.bidPrice),
-              apiSecret,
-              accesskey,
-            });
+            if (roundedNumber.toString() !== "0") {
+              await axios.post("/api/sellMx", {
+                symbol: "MXUSDC",
+                quantity: roundedNumber.toString(),
+                price: giamHaiDonVi(responsePriceMxUsdc?.data?.bidPrice),
+                apiSecret,
+                accesskey,
+              });
+            }
 
-            if (responseSellMxUsdc.status === 200) {
-              const accountInfo = await getAccountInFo();
+            const accountInfo = await getAccountInFo();
 
-              const isUSDC = accountInfo?.balances.find(
-                (balance: any, _: any) => balance.asset === "USDC"
-              );
+            const isUSDC = accountInfo?.balances.find(
+              (balance: any, _: any) => balance.asset === "USDC"
+            );
 
-              if (isUSDC.free) {
-                const responsePriceUSDCUSDT = await axios.get(
-                  "/api/currentPrice24hr",
-                  {
-                    params: {
-                      symbol: "USDCUSDT",
-                      accesskey,
-                      apiSecret,
-                    },
-                  }
-                );
-
-                if (responsePriceUSDCUSDT.status === 400) {
-                  return;
+            if (isUSDC.free) {
+              const responsePriceUSDCUSDT = await axios.get(
+                "/api/currentPrice24hr",
+                {
+                  params: {
+                    symbol: "USDCUSDT",
+                    accesskey,
+                    apiSecret,
+                  },
                 }
+              );
+              let roundedNumberUSDC: number =
+                Math.floor(isUSDC?.free * factor) / factor;
 
-                let roundedNumberUSDC: number =
-                  Math.floor(isUSDC?.free * factor) / factor;
-
-                const responseSellUSDCUSDT = await axios.post("/api/sellMx", {
+              if (
+                responsePriceUSDCUSDT?.data?.bidPrice &&
+                roundedNumberUSDC.toString() !== "0"
+              ) {
+                await axios.post("/api/sellMx", {
                   symbol: "USDCUSDT",
                   quantity: roundedNumberUSDC.toString(),
                   price: giamHaiDonVi(responsePriceUSDCUSDT?.data?.bidPrice),
                   apiSecret,
                   accesskey,
                 });
-
-                if (responseSellUSDCUSDT.status !== 200) {
-                  return alert("Bán USDC thành công!");
-                }
-
-                alert("Bán USDC thành công!");
               }
             }
           }
@@ -518,7 +515,7 @@ const BuySellComponent = () => {
               });
 
               if (responseSellUSDCUSDT.status !== 200) {
-                return alert("Bán USDC thành công!");
+                return alert("Bán USDC không thành công!");
               }
 
               alert("Bán USDC thành công!");
@@ -942,17 +939,17 @@ const BuySellComponent = () => {
           <p className="mt-2">
             USDC HIỆN CÓ:{" "}
             {(accountInFo?.balances?.length &&
-              accountInFo?.balances?.find(
-                (balance: any, _: any) => balance?.asset === "USDC"
-              )?.free) ||
+              accountInFo?.balances
+                ?.find((balance: any, _: any) => balance?.asset === "USDC")
+                ?.free?.slice(0, 5)) ||
               "0"}
           </p>
           <p className="mt-2">
             USDT HIỆN CÓ:{" "}
             {(accountInFo?.balances?.length &&
-              accountInFo?.balances?.find(
-                (balance: any, _: any) => balance?.asset === "USDT"
-              )?.free) ||
+              accountInFo?.balances
+                ?.find((balance: any, _: any) => balance?.asset === "USDT")
+                ?.free?.slice(0, 5)) ||
               "0"}
           </p>
         </div>
