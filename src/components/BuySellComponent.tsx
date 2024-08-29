@@ -95,13 +95,12 @@ const BuySellComponent = () => {
           apiSecret,
         },
       });
-      console.log("🚀 ~ getWidthdrawHistory ~ response:", response);
       if (response.status !== 200) return;
       setHistoryWidthdraw(response?.data?.[0]);
     } catch (error) {}
   };
 
-  const getPriceCoinAndCovertMxAuto = async () => {
+  const getPriceCoinAndCovertMxAuto = async (accountInfo: any) => {
     try {
       if (accesskey && symbolSearch && apiSecret) {
         const response = await axios.get("/api/currentPrice", {
@@ -114,10 +113,11 @@ const BuySellComponent = () => {
         const isGreaterOne = containsDigitGreaterThanOrEqualTo2(
           response.data.price
         );
+        if (!isGreaterOne) {
+          return;
+        }
         if (isGreaterOne) {
           for (let i = 0; i <= 10; i++) {
-            const accountInfo = await getAccountInFo();
-
             if (accountInfo?.balances && accountInfo?.balances.length) {
               const currentCoin = accountInfo?.balances.find(
                 (balance: any, _: any) =>
@@ -328,16 +328,109 @@ const BuySellComponent = () => {
     }
   };
 
-  const getAccountInfoAndAutoSellMX = async (inUseEffect?: boolean) => {
-    const accountInfo = await getAccountInFo(inUseEffect);
+  // const sellMXAuto = async (isMXCoin: any) => {
+  //   try {
+  //     // }
+  //   } catch (error) {
+  //     console.log("🚀 ~ sellMX ~ error:", error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
-    if (accountInfo?.balances && accountInfo?.balances?.length) {
-      const isMXCoin = accountInfo?.balances.find(
-        (balance: any, _: any) => balance.asset === "MX"
-      );
-      if (isMXCoin) {
-        sellMXAuto(isMXCoin);
+  const autoSellMX = async (accountInfo?: any) => {
+    try {
+      if (accountInfo?.balances && accountInfo?.balances?.length) {
+        const isMXCoin = accountInfo?.balances.find(
+          (balance: any, _: any) => balance.asset === "MX"
+        );
+        if (isMXCoin) {
+          if (!isMXCoin) {
+            return alert("Không tìm thấy MX COIN");
+          }
+          if (isMXCoin) {
+            const responsePriceMxUsdc = await axios.get("/api/currentPrice", {
+              params: {
+                symbol: "MXUSDC",
+                accesskey,
+                apiSecret,
+              },
+            });
+
+            if (
+              responsePriceMxUsdc.status !== 200 ||
+              !responsePriceMxUsdc?.data?.bidPrice
+            )
+              return;
+
+            if (Number(responsePriceMxUsdc?.data?.price) <= 3.0) {
+              return alert("Giá MX nhỏ hơn 3.0 USDT vui lòng kiểm tra lại");
+            }
+            if (!isMXCoin?.free) {
+              return alert("Số lượng MX không có");
+            }
+
+            let decimalPlaces: number = 2;
+            let factor: number = Math.pow(10, decimalPlaces);
+
+            // Làm tròn xuống số
+            let roundedNumber: number =
+              Math.floor(isMXCoin?.free * factor) / factor;
+
+            const responseSellMxUsdc = await axios.post("/api/sellMx", {
+              symbol: "MXUSDC",
+              quantity: roundedNumber.toString(),
+              price: giamHaiDonVi(responsePriceMxUsdc?.data?.bidPrice),
+              apiSecret,
+              accesskey,
+            });
+
+            if (responseSellMxUsdc.status === 200) {
+              const accountInfo = await getAccountInFo();
+
+              const isUSDC = accountInfo?.balances.find(
+                (balance: any, _: any) => balance.asset === "USDC"
+              );
+
+              if (isUSDC.free) {
+                const responsePriceUSDCUSDT = await axios.get(
+                  "/api/currentPrice",
+                  {
+                    params: {
+                      symbol: "USDCUSDT",
+                      accesskey,
+                      apiSecret,
+                    },
+                  }
+                );
+
+                if (responsePriceUSDCUSDT.status === 400) {
+                  return;
+                }
+
+                let roundedNumberUSDC: number =
+                  Math.floor(isUSDC?.free * factor) / factor;
+
+                const responseSellUSDCUSDT = await axios.post("/api/sellMx", {
+                  symbol: "USDCUSDT",
+                  quantity: roundedNumberUSDC.toString(),
+                  price: giamHaiDonVi(responsePriceUSDCUSDT?.data?.bidPrice),
+                  apiSecret,
+                  accesskey,
+                });
+
+                if (responseSellUSDCUSDT.status !== 200) {
+                  return alert("Bán USDC thành công!");
+                }
+
+                alert("Bán USDC thành công!");
+              }
+            }
+          }
+        }
       }
+    } catch (error) {
+      console.log("🚀 ~ autoSellMX ~ error:", error);
     }
   };
 
@@ -368,14 +461,22 @@ const BuySellComponent = () => {
         getCurrentOrder();
         getHistoryConvertMX();
         getWidthdrawHistory();
-        getPriceCoinAndCovertMxAuto();
-        getAccountInfoAndAutoSellMX(true);
+        getAccountInFo(true);
         if (withdrawStatus === "Rút thành công") {
           getWidthdrawHistory();
         }
       }, 3000);
     }
   }, [isBtnSell, accesskey, apiSecret, symbolSearch, start, withdrawStatus]);
+
+  useEffect(() => {
+    if (accountInFo) {
+      setInterval(() => {
+        getPriceCoinAndCovertMxAuto(accountInFo);
+        autoSellMX(accountInFo);
+      }, 3000);
+    }
+  }, [accountInFo]);
 
   useEffect(() => {
     if (!start) {
@@ -502,98 +603,6 @@ const BuySellComponent = () => {
     }
   };
 
-  const sellMXAuto = async (isMXCoin: any) => {
-    try {
-      // if (accountInfo?.balances?.length) {
-      // const isMXCoin = accountInfo?.balances.find(
-      //   (balance: any, _: any) => balance.asset === "MX"
-      // );
-      if (!isMXCoin) {
-        return alert("Không tìm thấy MX COIN");
-      }
-      if (isMXCoin) {
-        const responsePriceMxUsdc = await axios.get("/api/currentPrice", {
-          params: {
-            symbol: "MXUSDC",
-            accesskey,
-            apiSecret,
-          },
-        });
-
-        if (
-          responsePriceMxUsdc.status !== 200 ||
-          !responsePriceMxUsdc?.data?.bidPrice
-        )
-          return;
-
-        if (Number(responsePriceMxUsdc?.data?.price) <= 3.0) {
-          return alert("Giá MX nhỏ hơn 3.0 USDT vui lòng kiểm tra lại");
-        }
-        if (!isMXCoin?.free) {
-          return alert("Số lượng MX không có");
-        }
-
-        let decimalPlaces: number = 2;
-        let factor: number = Math.pow(10, decimalPlaces);
-
-        // Làm tròn xuống số
-        let roundedNumber: number =
-          Math.floor(isMXCoin?.free * factor) / factor;
-
-        const responseSellMxUsdc = await axios.post("/api/sellMx", {
-          symbol: "MXUSDC",
-          quantity: roundedNumber.toString(),
-          price: giamHaiDonVi(responsePriceMxUsdc?.data?.bidPrice),
-          apiSecret,
-          accesskey,
-        });
-
-        if (responseSellMxUsdc.status === 200) {
-          const accountInfo = await getAccountInFo();
-
-          const isUSDC = accountInfo?.balances.find(
-            (balance: any, _: any) => balance.asset === "USDC"
-          );
-
-          if (isUSDC.free) {
-            const responsePriceUSDCUSDT = await axios.get("/api/currentPrice", {
-              params: {
-                symbol: "USDCUSDT",
-                accesskey,
-                apiSecret,
-              },
-            });
-
-            if (responsePriceUSDCUSDT.status === 400) {
-              return;
-            }
-
-            let roundedNumberUSDC: number =
-              Math.floor(isUSDC?.free * factor) / factor;
-
-            const responseSellUSDCUSDT = await axios.post("/api/sellMx", {
-              symbol: "USDCUSDT",
-              quantity: roundedNumberUSDC.toString(),
-              price: giamHaiDonVi(responsePriceUSDCUSDT?.data?.bidPrice),
-              apiSecret,
-              accesskey,
-            });
-
-            if (responseSellUSDCUSDT.status !== 200) {
-              return alert("Bán USDC thành công!");
-            }
-
-            alert("Bán USDC thành công!");
-          }
-        }
-      }
-      // }
-    } catch (error) {
-      console.log("🚀 ~ sellMX ~ error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
   const sellMX = async () => {
     try {
       setLoading(true);
