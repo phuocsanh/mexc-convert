@@ -28,8 +28,10 @@ const BuySellComponent = () => {
   const [addressWallet, setAddressWallet] = useState("");
   const [quantityUSDTWithdraw, setQuantityUSDTWithdraw] = useState("");
   const [withdrawStatus, setWithdrawStatus] = useState("");
-  const [historyConvertMX, setHistoryConvertMX] = useState([]);
+  const [historyConvertMX, setHistoryConvertMX] = useState(0);
   const [accountInFo, setAccountInfo] = useState<any>({});
+  const [historyWidthdraw, setHistoryWidthdraw] = useState<any>({});
+  console.log("🚀 ~ BuySellComponent ~ historyWidthdraw:", historyWidthdraw);
 
   const reload = () => {
     setAccountName("");
@@ -46,7 +48,7 @@ const BuySellComponent = () => {
     setQuantityOrderSell([]);
     setQuantityUSDTWithdraw("");
     setWithdrawStatus("");
-    setHistoryConvertMX([]);
+    setHistoryConvertMX(0);
     setAccountInfo({});
     // setNetwork('')
   };
@@ -54,7 +56,7 @@ const BuySellComponent = () => {
     // Xác định số chữ số thập phân của x
     const decimalPlaces = x.toString().split(".")[1]?.length || 0;
     // Tạo giá trị trừ đi dựa trên vị trí của chữ số thập phân cuối cùng
-    const subtractValue = 2 * Math.pow(10, -decimalPlaces);
+    const subtractValue = 3 * Math.pow(10, -decimalPlaces);
     // Trừ đi giá trị này từ số ban đầu
     const convert = +x - subtractValue;
 
@@ -80,8 +82,27 @@ const BuySellComponent = () => {
       if (response.status !== 200) return null;
       if (inUseEffect) {
         setAccountInfo(response.data);
+        const findUsdc = response?.data?.balances?.find(
+          (balance: any, _: any) => balance.asset === "USDT"
+        );
+        if (findUsdc) {
+          setQuantityUSDTWithdraw(findUsdc.free || "0");
+        }
       }
       return response.data;
+    } catch (error) {}
+  };
+  const getWidthdrawHistory = async (inUseEffect?: boolean) => {
+    try {
+      const response = await axios.get("/api/withdrawHistory", {
+        params: {
+          accesskey,
+          apiSecret,
+        },
+      });
+      console.log("🚀 ~ getWidthdrawHistory ~ response:", response);
+      if (response.status !== 200) return;
+      setHistoryWidthdraw(response?.data?.[0]);
     } catch (error) {}
   };
 
@@ -217,26 +238,34 @@ const BuySellComponent = () => {
     }
     if (accesskey && apiSecret && symbolSearch) {
       const getHistoryConvertMX = async () => {
-        const responseHistoryCovertMX = await axios.get("/api/convertXM", {
+        const responseHistoryCovertMX = await axios.get("/api/convertMX", {
           params: {
             accesskey,
             apiSecret,
           },
         });
+        console.log(
+          "🚀 ~ getHistoryConvertMX ~ responseHistoryCovertMX:",
+          responseHistoryCovertMX
+        );
 
         if (responseHistoryCovertMX.status !== 200) {
           return;
         }
-        setHistoryConvertMX(responseHistoryCovertMX.data);
+        setHistoryConvertMX(responseHistoryCovertMX?.data?.totalRecords || 0);
       };
 
       setInterval(() => {
         getCurrentOrder();
         getHistoryConvertMX();
         getAccountInFo(true);
+        getWidthdrawHistory();
+        if (withdrawStatus === "Rút thành công") {
+          getWidthdrawHistory();
+        }
       }, 2000);
     }
-  }, [isBtnSell, accesskey, apiSecret, symbolSearch, start]);
+  }, [isBtnSell, accesskey, apiSecret, symbolSearch, start, withdrawStatus]);
 
   useEffect(() => {
     if (!start) {
@@ -272,11 +301,11 @@ const BuySellComponent = () => {
   }, [symbol]);
 
   const handleBuyCoin = async () => {
+    setFocus(true);
     if (!start) {
       return alert("Vui lòng nhấn START trước!");
     }
     setLoading(true);
-    setFocus(true);
     if (!accesskey || !apiSecret || !price || !quantity || !symbol) {
       return alert("Vui lòng nhập đử thông tin!");
     }
@@ -340,9 +369,8 @@ const BuySellComponent = () => {
       setLoading(true);
 
       const response = await axios.post("/api/withdrawUsdt", {
-        symbol: symbol.toUpperCase(),
-        network,
-        addressWallet,
+        netWork: network,
+        address: addressWallet,
         amount: quantityUSDTWithdraw,
         apiSecret,
         accesskey,
@@ -384,12 +412,17 @@ const BuySellComponent = () => {
               apiSecret,
             },
           });
+          console.log(
+            "🚀 ~ sellMX ~ responsePriceMxUsdc:",
+            responsePriceMxUsdc
+          );
 
           if (
             responsePriceMxUsdc.status !== 200 ||
-            !responsePriceMxUsdc?.data?.price
+            !responsePriceMxUsdc?.data?.bidPrice
           )
             return;
+
           if (Number(responsePriceMxUsdc?.data?.price) <= 3.0) {
             return alert("Giá MX nhỏ hơn 3.0 USDT vui lòng kiểm tra lại");
           }
@@ -404,24 +437,62 @@ const BuySellComponent = () => {
           let roundedNumber: number =
             Math.floor(isMXCoin?.free * factor) / factor;
 
-          const responseSellMxUsdc = await axios.post("/api/sell", {
+          const responseSellMxUsdc = await axios.post("/api/sellMx", {
             symbol: "MXUSDC",
             quantity: roundedNumber.toString(),
-            price: giamHaiDonVi(responsePriceMxUsdc?.data?.price),
+            price: giamHaiDonVi(responsePriceMxUsdc?.data?.bidPrice),
             apiSecret,
             accesskey,
           });
 
-          console.log("🚀 ~ sellMX ~ responseSellMxUsdc:", responseSellMxUsdc);
-
           if (responseSellMxUsdc.status === 200) {
-            // const response = await axios.post("/api/sell", {
-            //   symbol: "MXUSDT",
-            //   quantity: roundedNumber.toString(),
-            //   price: responseMXPrice?.data?.price,
-            //   apiSecret,
-            //   accesskey,
-            // });
+            const accountInfo = await getAccountInFo();
+
+            const isUSDC = accountInfo?.balances.find(
+              (balance: any, _: any) => balance.asset === "USDC"
+            );
+            console.log("🚀 ~ sellMX ~ isUSDC:", isUSDC);
+
+            if (isUSDC.free) {
+              const responsePriceUSDCUSDT = await axios.get(
+                "/api/currentPrice",
+                {
+                  params: {
+                    symbol: "USDCUSDT",
+                    accesskey,
+                    apiSecret,
+                  },
+                }
+              );
+
+              if (responsePriceUSDCUSDT.status === 400) {
+                return;
+              }
+
+              let roundedNumberUSDC: number =
+                Math.floor(isUSDC?.free * factor) / factor;
+              console.log(
+                "🚀 ~ sellMX ~ responsePriceUSDCUSDT 454:",
+                responsePriceUSDCUSDT
+              );
+              const responseSellUSDCUSDT = await axios.post("/api/sellMx", {
+                symbol: "USDCUSDT",
+                quantity: roundedNumberUSDC.toString(),
+                price: giamHaiDonVi(responsePriceUSDCUSDT?.data?.bidPrice),
+                apiSecret,
+                accesskey,
+              });
+              console.log(
+                "🚀 ~ sellMX ~ responseSellUSDCUSDT:",
+                responseSellUSDCUSDT
+              );
+
+              if (responseSellUSDCUSDT.status !== 200) {
+                return alert("Bán USDC thành công!");
+              }
+
+              alert("Bán USDC thành công!");
+            }
           }
         }
       }
@@ -457,6 +528,7 @@ const BuySellComponent = () => {
               <button
                 className="px-3 py-2 bg-lime-700 rounded-md"
                 onClick={() => {
+                  setFocus(true);
                   reload();
                 }}
               >
@@ -489,7 +561,7 @@ const BuySellComponent = () => {
                 value={apiSecret}
                 onChange={(e) => setApiSecret(e.target.value)}
                 placeholder="Enter Secret Key"
-                className="w-4/5 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
+                className="w-full p-2 border bg-slate-800 rounded  focus:bg-teal-800"
               />
             </div>
           </div>
@@ -511,6 +583,8 @@ const BuySellComponent = () => {
               <button
                 className="px-5 py-2  rounded-md bg-orange-300"
                 onClick={() => {
+                  setFocus(true);
+
                   if (!symbolSearch || !apiSecret || !accesskey) {
                     return alert("Vui lòng nhập đủ thông tin!");
                   }
@@ -610,6 +684,7 @@ const BuySellComponent = () => {
             <div className="flex w-4/5  mt-4 flex-col justify-end">
               <button
                 onClick={() => {
+                  setFocus(true);
                   if (
                     !accesskey ||
                     !apiSecret ||
@@ -641,6 +716,7 @@ const BuySellComponent = () => {
             disabled={loading}
             className="px-9 py-2 hover:bg-amber-500 bg-amber-600 mt-2 rounded-md"
             onClick={() => {
+              setFocus(true);
               if (!accesskey || !apiSecret || !symbol || !start) {
                 return alert(
                   "Vui lòng nhập Assetkey , ApiKey và tên COIN sau đó nhấn START"
@@ -656,6 +732,7 @@ const BuySellComponent = () => {
             disabled={loading}
             className="px-9 py-2 hover:bg-purple-500  bg-purple-600 mt-2 rounded-md"
             onClick={() => {
+              setFocus(true);
               if (!accesskey || !apiSecret || !symbol || !start) {
                 return alert(
                   "Vui lòng nhập Assetkey , ApiKey và tên COIN sau đó nhấn START"
@@ -671,18 +748,6 @@ const BuySellComponent = () => {
               ).free) ||
               "0"}
           </button>
-        </div>
-        <div className=" flex justify-between">
-          <p className="mt-2">Đã đổi MX: {historyConvertMX.length}</p>
-          <p className="mt-2">
-            USDT HIỆN CÓ:{" "}
-            {(accountInFo?.balances?.length &&
-              accountInFo?.balances?.find(
-                (balance: any, _: any) => balance?.asset === "USDT"
-              ).free) ||
-              "0"}
-          </p>
-
           <p
             className={`mt-2 ${
               withdrawStatus === "Rút thất bại"
@@ -692,7 +757,26 @@ const BuySellComponent = () => {
                 : " text-orange-500"
             }`}
           >
-            Trạng thái rút: {!withdrawStatus ? "chưa" : withdrawStatus}
+            Nhấn rút: {!withdrawStatus ? "chưa" : withdrawStatus}
+          </p>
+        </div>
+        <div className=" flex justify-between">
+          <p className="mt-2">Đã đổi MX: {historyConvertMX}</p>
+          <p className="mt-2">
+            USDC HIỆN CÓ:{" "}
+            {(accountInFo?.balances?.length &&
+              accountInFo?.balances?.find(
+                (balance: any, _: any) => balance?.asset === "USDC"
+              )?.free) ||
+              "0"}
+          </p>
+          <p className="mt-2">
+            USDT HIỆN CÓ:{" "}
+            {(accountInFo?.balances?.length &&
+              accountInFo?.balances?.find(
+                (balance: any, _: any) => balance?.asset === "USDT"
+              )?.free) ||
+              "0"}
           </p>
         </div>
         <div>
@@ -706,10 +790,10 @@ const BuySellComponent = () => {
                 value={network}
                 onChange={(e) => setNetwork(e.target.value)}
                 placeholder="Enter network"
-                className="w-3/4 mt-2 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
+                className="w-full mt-2 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
               />
             </div>
-            <div>
+            <div className=" w-full ml-20">
               <span>{"ADDRESS (ĐỊA CHỈ VÍ)"}</span>
               <input
                 onFocus={() => setFocus(true)}
@@ -718,7 +802,7 @@ const BuySellComponent = () => {
                 value={addressWallet}
                 onChange={(e) => setAddressWallet(e.target.value)}
                 placeholder="Enter Address"
-                className="w-full mt-2 p-2 border bg-slate-800 rounded  focus:bg-teal-800"
+                className="w-full mt-2 p-2 border bg-slate-800 rounded  focus:bg-teal-800 "
               />
             </div>
           </div>
@@ -744,6 +828,7 @@ const BuySellComponent = () => {
                 disabled={loading}
                 className="mt-2 px-8 py-3 rounded-md hover:bg-cyan-500 bg-cyan-600"
                 onClick={() => {
+                  setFocus(true);
                   if (
                     !addressWallet ||
                     !addressWallet ||
@@ -757,8 +842,29 @@ const BuySellComponent = () => {
                   withdrawUsdtToWallet();
                 }}
               >
-                Chuyển USDT
+                Rút USDT{" "}
+                {(accountInFo?.balances?.length &&
+                  accountInFo?.balances
+                    ?.find((balance: any, _: any) => balance?.asset === "USDT")
+                    ?.free?.slice(0, 5)) ||
+                  "0"}
               </button>
+              {!!historyWidthdraw?.status && (
+                <p className="mt-2 text-lg text-teal-400">
+                  Tiến trình rút:{" "}
+                  {historyWidthdraw?.status < 7
+                    ? "Đang rút"
+                    : historyWidthdraw?.status === 7
+                    ? "Rút hoàn tất"
+                    : historyWidthdraw?.status === 8
+                    ? "Thất bại"
+                    : historyWidthdraw?.status === 9
+                    ? "Bị hủy"
+                    : historyWidthdraw?.status === 10
+                    ? "Kiểm tra thủ công"
+                    : "Không xác định"}
+                </p>
+              )}
             </div>
           </div>
         </div>

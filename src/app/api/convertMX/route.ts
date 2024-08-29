@@ -76,6 +76,7 @@ export async function GET(req: NextRequest) {
         },
       }
     );
+    console.log("🚀 ~ GET ~ response history convertmx:", response);
 
     return NextResponse.json(response.data);
   } catch (error: any) {

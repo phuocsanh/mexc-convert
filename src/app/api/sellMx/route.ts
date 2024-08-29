@@ -4,17 +4,14 @@ import { createSignature } from "@/ultil/createSignature";
 
 export async function POST(req: NextRequest) {
   try {
-    const { apiSecret, accesskey, netWork, amount, address } = await req.json();
-
-    if (!accesskey || !apiSecret || !amount || !netWork || !address) {
-      return;
-    }
+    const { symbol, quantity, price, apiSecret, accesskey } = await req.json();
 
     const params: Record<string, any> = {
-      coin: "USDT",
-      netWork,
-      amount,
-      address,
+      symbol: symbol,
+      side: "SELL",
+      type: "LIMIT",
+      quantity,
+      price,
     };
 
     const parametersArray = Object.keys(params).map((key: any) => ({
@@ -24,7 +21,7 @@ export async function POST(req: NextRequest) {
     }));
 
     const response = await axios.post(
-      "https://api.mexc.com/api/v3/capital/withdraw",
+      "https://api.mexc.com/api/v3/order",
       null,
       {
         params: {
@@ -38,7 +35,6 @@ export async function POST(req: NextRequest) {
         },
       }
     );
-    console.log("🚀 ~ POST ~ response withdraw:", response);
 
     return NextResponse.json(response.data);
   } catch (error: any) {

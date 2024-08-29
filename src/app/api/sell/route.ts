@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
 
     const requests = Array.from({ length: 9 }).map(async () => {
       const params: Record<string, any> = {
-        symbol: symbol,
+        symbol: symbol + "USDT",
         side: "SELL",
         type: "LIMIT",
         quantity,
