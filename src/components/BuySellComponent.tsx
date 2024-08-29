@@ -87,7 +87,7 @@ const BuySellComponent = () => {
       return response.data;
     } catch (error) {}
   };
-  const getWidthdrawHistory = async (inUseEffect?: boolean) => {
+  const getWidthdrawHistory = async () => {
     try {
       const response = await axios.get("/api/withdrawHistory", {
         params: {
@@ -101,9 +101,13 @@ const BuySellComponent = () => {
   };
 
   const getPriceCoinAndCovertMxAuto = async (accountInfo: any) => {
+    console.log(
+      "🚀 ~ getPriceCoinAndCovertMxAuto ~ getPriceCoinAndCovertMxAuto:"
+    );
+
     try {
       if (accesskey && symbolSearch && apiSecret) {
-        const response = await axios.get("/api/currentPrice", {
+        const response = await axios.get("/api/getPriceCurrentCoin", {
           params: {
             symbol: symbol.toUpperCase() + "USDT",
             accesskey,
@@ -124,11 +128,7 @@ const BuySellComponent = () => {
                   balance.asset === symbolSearch.toUpperCase()
               );
 
-              if (!currentCoin) {
-                return;
-              }
-
-              const response = await axios.get("/api/currentPrice", {
+              const response = await axios.get("/api/getPriceCurrentCoin", {
                 params: {
                   symbol: symbol.toUpperCase() + "USDT",
                   accesskey,
@@ -150,10 +150,6 @@ const BuySellComponent = () => {
                         apiSecret,
                       },
                     });
-
-                    if (responseOrderCurrent.status === 400) {
-                      return alert("Get lệnh hiện tại fail");
-                    }
 
                     if (
                       responseOrderCurrent.status === 200 &&
@@ -178,8 +174,6 @@ const BuySellComponent = () => {
                               },
                             }
                           );
-                        } else {
-                          return;
                         }
                       }
                     }
@@ -209,7 +203,7 @@ const BuySellComponent = () => {
 
       if (accesskey && symbolSearch && apiSecret) {
         for (let i = 0; i <= 10; i++) {
-          const response = await axios.get("/api/currentPrice", {
+          const response = await axios.get("/api/getPriceCurrentCoin", {
             params: {
               symbol: symbol.toUpperCase() + "USDT",
               accesskey,
@@ -328,17 +322,23 @@ const BuySellComponent = () => {
     }
   };
 
-  // const sellMXAuto = async (isMXCoin: any) => {
-  //   try {
-  //     // }
-  //   } catch (error) {
-  //     console.log("🚀 ~ sellMX ~ error:", error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
+  const getHistoryConvertMX = async () => {
+    const responseHistoryCovertMX = await axios.get("/api/convertMX", {
+      params: {
+        accesskey,
+        apiSecret,
+      },
+    });
+
+    if (responseHistoryCovertMX.status !== 200) {
+      return;
+    }
+    setHistoryConvertMX(responseHistoryCovertMX?.data?.totalRecords || 0);
+  };
 
   const autoSellMX = async (accountInfo?: any) => {
+    console.log("🚀 ~ autoSellMX ~ autoSellMX:");
+
     try {
       if (accountInfo?.balances && accountInfo?.balances?.length) {
         const isMXCoin = accountInfo?.balances.find(
@@ -394,7 +394,7 @@ const BuySellComponent = () => {
 
               if (isUSDC.free) {
                 const responsePriceUSDCUSDT = await axios.get(
-                  "/api/currentPrice",
+                  "/api/currentPrice24hr",
                   {
                     params: {
                       symbol: "USDCUSDT",
@@ -433,84 +433,105 @@ const BuySellComponent = () => {
       console.log("🚀 ~ autoSellMX ~ error:", error);
     }
   };
+  const sellMX = async () => {
+    try {
+      setLoading(true);
 
-  useEffect(() => {
-    if (!start) {
-      return;
-    }
-    if (accesskey && apiSecret && symbolSearch) {
-      const getHistoryConvertMX = async () => {
-        const responseHistoryCovertMX = await axios.get("/api/convertMX", {
-          params: {
-            accesskey,
-            apiSecret,
-          },
-        });
-        console.log(
-          "🚀 ~ getHistoryConvertMX ~ responseHistoryCovertMX:",
-          responseHistoryCovertMX
+      const accountInfo = await getAccountInFo();
+
+      if (accountInfo?.balances?.length) {
+        const isMXCoin = accountInfo?.balances.find(
+          (balance: any, _: any) => balance.asset === "MX"
         );
-
-        if (responseHistoryCovertMX.status !== 200) {
-          return;
+        if (!isMXCoin) {
+          return alert("Không tìm thấy MX COIN");
         }
-        setHistoryConvertMX(responseHistoryCovertMX?.data?.totalRecords || 0);
-      };
+        if (isMXCoin) {
+          const responsePriceMxUsdc = await axios.get("/api/currentPrice24hr", {
+            params: {
+              symbol: "MXUSDC",
+              accesskey,
+              apiSecret,
+            },
+          });
 
-      setInterval(() => {
-        getCurrentOrder();
-        getHistoryConvertMX();
-        getWidthdrawHistory();
-        getAccountInFo(true);
-        if (withdrawStatus === "Rút thành công") {
-          getWidthdrawHistory();
-        }
-      }, 3000);
-    }
-  }, [isBtnSell, accesskey, apiSecret, symbolSearch, start, withdrawStatus]);
+          if (
+            responsePriceMxUsdc.status !== 200 ||
+            !responsePriceMxUsdc?.data?.bidPrice
+          )
+            return;
 
-  useEffect(() => {
-    if (accountInFo) {
-      setInterval(() => {
-        getPriceCoinAndCovertMxAuto(accountInFo);
-        autoSellMX(accountInFo);
-      }, 3000);
-    }
-  }, [accountInFo]);
+          if (Number(responsePriceMxUsdc?.data?.price) <= 3.0) {
+            return alert("Giá MX nhỏ hơn 3.0 USDT vui lòng kiểm tra lại");
+          }
+          if (!isMXCoin?.free) {
+            return alert("Số lượng MX không có");
+          }
 
-  useEffect(() => {
-    if (!start) {
-      return;
-    }
-    if (idOrderBuy && accesskey && apiSecret && symbolSearch) {
-      const getOrderById = async () => {
-        const responseOrderData = await axios.get("/api/getOrderById", {
-          params: {
-            accesskey,
+          let decimalPlaces: number = 2;
+          let factor: number = Math.pow(10, decimalPlaces);
+
+          // Làm tròn xuống số
+          let roundedNumber: number =
+            Math.floor(isMXCoin?.free * factor) / factor;
+
+          const responseSellMxUsdc = await axios.post("/api/sellMx", {
+            symbol: "MXUSDC",
+            quantity: roundedNumber.toString(),
+            price: giamHaiDonVi(responsePriceMxUsdc?.data?.bidPrice),
             apiSecret,
-            orderId: idOrderBuy,
-            symbol: symbolSearch.toUpperCase(),
-          },
-        });
-        if (responseOrderData.status === 200) {
-          setResponseOrderData(responseOrderData.data);
+            accesskey,
+          });
+
+          if (responseSellMxUsdc.status === 200) {
+            const accountInfo = await getAccountInFo();
+
+            const isUSDC = accountInfo?.balances.find(
+              (balance: any, _: any) => balance.asset === "USDC"
+            );
+
+            if (isUSDC.free) {
+              const responsePriceUSDCUSDT = await axios.get(
+                "/api/currentPrice24hr",
+                {
+                  params: {
+                    symbol: "USDCUSDT",
+                    accesskey,
+                    apiSecret,
+                  },
+                }
+              );
+
+              if (responsePriceUSDCUSDT.status === 400) {
+                return;
+              }
+
+              let roundedNumberUSDC: number =
+                Math.floor(isUSDC?.free * factor) / factor;
+
+              const responseSellUSDCUSDT = await axios.post("/api/sellMx", {
+                symbol: "USDCUSDT",
+                quantity: roundedNumberUSDC.toString(),
+                price: giamHaiDonVi(responsePriceUSDCUSDT?.data?.bidPrice),
+                apiSecret,
+                accesskey,
+              });
+
+              if (responseSellUSDCUSDT.status !== 200) {
+                return alert("Bán USDC thành công!");
+              }
+
+              alert("Bán USDC thành công!");
+            }
+          }
         }
-      };
-
-      setInterval(() => {
-        getOrderById();
-      }, 2500);
+      }
+    } catch (error) {
+      console.log("🚀 ~ sellMX ~ error:", error);
+    } finally {
+      setLoading(false);
     }
-  }, [idOrderBuy, start]);
-
-  useEffect(() => {
-    if (symbol.length > 0) {
-      setTimeout(() => {
-        setSymbolSearch(symbol);
-      }, 500);
-    }
-  }, [symbol]);
-
+  };
   const handleBuyCoin = async () => {
     setFocus(true);
     if (!start) {
@@ -603,105 +624,61 @@ const BuySellComponent = () => {
     }
   };
 
-  const sellMX = async () => {
-    try {
-      setLoading(true);
-
-      const accountInfo = await getAccountInFo();
-
-      if (accountInfo?.balances?.length) {
-        const isMXCoin = accountInfo?.balances.find(
-          (balance: any, _: any) => balance.asset === "MX"
-        );
-        if (!isMXCoin) {
-          return alert("Không tìm thấy MX COIN");
-        }
-        if (isMXCoin) {
-          const responsePriceMxUsdc = await axios.get("/api/currentPrice", {
-            params: {
-              symbol: "MXUSDC",
-              accesskey,
-              apiSecret,
-            },
-          });
-
-          if (
-            responsePriceMxUsdc.status !== 200 ||
-            !responsePriceMxUsdc?.data?.bidPrice
-          )
-            return;
-
-          if (Number(responsePriceMxUsdc?.data?.price) <= 3.0) {
-            return alert("Giá MX nhỏ hơn 3.0 USDT vui lòng kiểm tra lại");
-          }
-          if (!isMXCoin?.free) {
-            return alert("Số lượng MX không có");
-          }
-
-          let decimalPlaces: number = 2;
-          let factor: number = Math.pow(10, decimalPlaces);
-
-          // Làm tròn xuống số
-          let roundedNumber: number =
-            Math.floor(isMXCoin?.free * factor) / factor;
-
-          const responseSellMxUsdc = await axios.post("/api/sellMx", {
-            symbol: "MXUSDC",
-            quantity: roundedNumber.toString(),
-            price: giamHaiDonVi(responsePriceMxUsdc?.data?.bidPrice),
-            apiSecret,
-            accesskey,
-          });
-
-          if (responseSellMxUsdc.status === 200) {
-            const accountInfo = await getAccountInFo();
-
-            const isUSDC = accountInfo?.balances.find(
-              (balance: any, _: any) => balance.asset === "USDC"
-            );
-
-            if (isUSDC.free) {
-              const responsePriceUSDCUSDT = await axios.get(
-                "/api/currentPrice",
-                {
-                  params: {
-                    symbol: "USDCUSDT",
-                    accesskey,
-                    apiSecret,
-                  },
-                }
-              );
-
-              if (responsePriceUSDCUSDT.status === 400) {
-                return;
-              }
-
-              let roundedNumberUSDC: number =
-                Math.floor(isUSDC?.free * factor) / factor;
-
-              const responseSellUSDCUSDT = await axios.post("/api/sellMx", {
-                symbol: "USDCUSDT",
-                quantity: roundedNumberUSDC.toString(),
-                price: giamHaiDonVi(responsePriceUSDCUSDT?.data?.bidPrice),
-                apiSecret,
-                accesskey,
-              });
-
-              if (responseSellUSDCUSDT.status !== 200) {
-                return alert("Bán USDC thành công!");
-              }
-
-              alert("Bán USDC thành công!");
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.log("🚀 ~ sellMX ~ error:", error);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!start) {
+      return;
     }
-  };
+    if (accesskey && apiSecret && symbolSearch) {
+      setInterval(() => {
+        getCurrentOrder();
+        getHistoryConvertMX();
+        getAccountInFo(true);
+        if (withdrawStatus === "Rút thành công") {
+          getWidthdrawHistory();
+        }
+      }, 3000);
+    }
+  }, [isBtnSell, accesskey, apiSecret, symbolSearch, start, withdrawStatus]);
+
+  useEffect(() => {
+    if (accountInFo) {
+      getPriceCoinAndCovertMxAuto(accountInFo);
+      autoSellMX(accountInFo);
+    }
+  }, [accountInFo]);
+
+  useEffect(() => {
+    if (!start) {
+      return;
+    }
+    if (idOrderBuy && accesskey && apiSecret && symbolSearch) {
+      const getOrderById = async () => {
+        const responseOrderData = await axios.get("/api/getOrderById", {
+          params: {
+            accesskey,
+            apiSecret,
+            orderId: idOrderBuy,
+            symbol: symbolSearch.toUpperCase(),
+          },
+        });
+        if (responseOrderData.status === 200) {
+          setResponseOrderData(responseOrderData.data);
+        }
+      };
+
+      setInterval(() => {
+        getOrderById();
+      }, 2500);
+    }
+  }, [idOrderBuy, start]);
+
+  useEffect(() => {
+    if (symbol.length > 0) {
+      setTimeout(() => {
+        setSymbolSearch(symbol);
+      }, 500);
+    }
+  }, [symbol]);
 
   return (
     <div
