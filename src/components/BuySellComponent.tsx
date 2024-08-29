@@ -260,6 +260,7 @@ const BuySellComponent = () => {
         getHistoryConvertMX();
         getAccountInFo(true);
         getWidthdrawHistory();
+        sellMX(true);
         if (withdrawStatus === "Rút thành công") {
           getWidthdrawHistory();
         }
@@ -392,9 +393,11 @@ const BuySellComponent = () => {
     }
   };
 
-  const sellMX = async () => {
+  const sellMX = async (isUseEffect?: boolean) => {
     try {
-      setLoading(true);
+      if (!isUseEffect) {
+        setLoading(true);
+      }
       const accountInfo = await getAccountInFo();
 
       if (accountInfo?.balances?.length) {
@@ -412,10 +415,6 @@ const BuySellComponent = () => {
               apiSecret,
             },
           });
-          console.log(
-            "🚀 ~ sellMX ~ responsePriceMxUsdc:",
-            responsePriceMxUsdc
-          );
 
           if (
             responsePriceMxUsdc.status !== 200 ||
@@ -451,7 +450,6 @@ const BuySellComponent = () => {
             const isUSDC = accountInfo?.balances.find(
               (balance: any, _: any) => balance.asset === "USDC"
             );
-            console.log("🚀 ~ sellMX ~ isUSDC:", isUSDC);
 
             if (isUSDC.free) {
               const responsePriceUSDCUSDT = await axios.get(
@@ -471,10 +469,7 @@ const BuySellComponent = () => {
 
               let roundedNumberUSDC: number =
                 Math.floor(isUSDC?.free * factor) / factor;
-              console.log(
-                "🚀 ~ sellMX ~ responsePriceUSDCUSDT 454:",
-                responsePriceUSDCUSDT
-              );
+
               const responseSellUSDCUSDT = await axios.post("/api/sellMx", {
                 symbol: "USDCUSDT",
                 quantity: roundedNumberUSDC.toString(),
@@ -482,10 +477,6 @@ const BuySellComponent = () => {
                 apiSecret,
                 accesskey,
               });
-              console.log(
-                "🚀 ~ sellMX ~ responseSellUSDCUSDT:",
-                responseSellUSDCUSDT
-              );
 
               if (responseSellUSDCUSDT.status !== 200) {
                 return alert("Bán USDC thành công!");
