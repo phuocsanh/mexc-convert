@@ -16,23 +16,23 @@ const BuySellComponent = () => {
   const [focus, setFocus] = useState(false);
   const [apiSecret, setApiSecret] = useState("");
   const [accesskey, setAccesskey] = useState("");
-  const [symbol, setSymbol] = useState("");
+  const [symbol, setSymbol] = useState("FANTOWN");
   const [symbolSearch, setSymbolSearch] = useState("");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
-  const [quantitySell, setQuantitySell] = useState("");
+  const [quantitySell, setQuantitySell] = useState("2499999999999999999999");
   const [quantityOrderSell, setQuantityOrderSell] = useState([]);
-  const [priceSell, setPriceSell] = useState("");
+  const [priceSell, setPriceSell] = useState("0.000000000000000000003");
   const [loading, setLoading] = useState(false);
 
   const [network, setNetwork] = useState("");
+  const [priceCurrentCoin, setPriceCurrentCoin] = useState("");
   const [addressWallet, setAddressWallet] = useState("");
   const [quantityUSDTWithdraw, setQuantityUSDTWithdraw] = useState("");
   const [withdrawStatus, setWithdrawStatus] = useState("");
   const [historyConvertMX, setHistoryConvertMX] = useState(0);
-  const [accountInFo, setAccountInfo] = useState<any>({});
+  const [accountInFo, setAccountInfo] = useState<any>(null);
   const [historyWidthdraw, setHistoryWidthdraw] = useState<any>({});
-  console.log("🚀 ~ BuySellComponent ~ historyWidthdraw:", historyWidthdraw);
 
   const reload = () => {
     setAccountName("");
@@ -50,7 +50,7 @@ const BuySellComponent = () => {
     setQuantityUSDTWithdraw("");
     setWithdrawStatus("");
     setHistoryConvertMX(0);
-    setAccountInfo({});
+    setAccountInfo(null);
     // setNetwork('')
   };
   function giamHaiDonVi(x: string): string {
@@ -99,7 +99,20 @@ const BuySellComponent = () => {
       setHistoryWidthdraw(response?.data?.[0]);
     } catch (error) {}
   };
-
+  const getPriceCurrentCoin = async () => {
+    console.log("🚀 ~ getPriceCurrentCoin ~ getPriceCurrentCoin105:");
+    const response = await axios.get("/api/getPriceCurrentCoin", {
+      params: {
+        symbol: symbol.toUpperCase() + "USDT",
+        accesskey,
+        apiSecret,
+      },
+    });
+    console.log("🚀 ~ getPriceCurrentCoin ~ response:", response);
+    if (response.status === 200 && response?.data?.price !== "0") {
+      setPriceCurrentCoin(response?.data?.price);
+    }
+  };
   const getPriceCoinAndCovertMxAuto = async (accountInfo: any) => {
     console.log(
       "🚀 ~ getPriceCoinAndCovertMxAuto ~ getPriceCoinAndCovertMxAuto:"
@@ -337,8 +350,6 @@ const BuySellComponent = () => {
   };
 
   const autoSellMX = async (accountInfo?: any) => {
-    console.log("🚀 ~ autoSellMX ~ autoSellMX:");
-
     try {
       if (accountInfo?.balances && accountInfo?.balances?.length) {
         const isMXCoin = accountInfo?.balances.find(
@@ -621,67 +632,120 @@ const BuySellComponent = () => {
     }
   };
 
+  const getAccountInFo1 = async (inUseEffect?: boolean) => {
+    try {
+      const response = await axios.get("/api/accountInfo", {
+        params: {
+          accesskey,
+          apiSecret,
+        },
+      });
+      if (response.status !== 200) return null;
+      if (inUseEffect) {
+        setAccountInfo(response.data);
+        const findUsdc = response?.data?.balances?.find(
+          (balance: any, _: any) => balance.asset === "USDT"
+        );
+        if (findUsdc) {
+          setQuantityUSDTWithdraw(findUsdc.free || "0");
+        }
+      }
+      return response.data;
+    } catch (error) {}
+  };
+
+  const getOrderById = async () => {
+    const responseOrderData = await axios.get("/api/getOrderById", {
+      params: {
+        accesskey,
+        apiSecret,
+        orderId: idOrderBuy,
+        symbol: symbolSearch.toUpperCase(),
+      },
+    });
+    if (responseOrderData.status === 200) {
+      setResponseOrderData(responseOrderData.data);
+    }
+  };
   useEffect(() => {
     if (!start) {
       return;
     }
-    if (accesskey && apiSecret && symbolSearch) {
-      setInterval(() => {
+
+    setInterval(() => {
+      if (accesskey && apiSecret && symbolSearch && start) {
+        console.log(
+          "🚀 ~ setInterval ~ setInterval 677:",
+          start,
+          apiSecret,
+          accesskey
+        );
+
         getCurrentOrder();
-        getHistoryConvertMX();
-        getAccountInFo(true);
+        if (accountInFo?.accountType) {
+          getHistoryConvertMX();
+        }
+        getAccountInFo1(true);
         if (withdrawStatus === "Rút thành công") {
           getWidthdrawHistory();
         }
-      }, 3000);
-    }
-  }, [isBtnSell, accesskey, apiSecret, symbolSearch, start, withdrawStatus]);
+      }
+    }, 3000);
+  }, [
+    isBtnSell,
+    accesskey,
+    apiSecret,
+    symbolSearch,
+    start,
+    withdrawStatus,
+    accountInFo?.accountType,
+  ]);
 
   useEffect(() => {
-    if (accountInFo) {
-      getPriceCoinAndCovertMxAuto(accountInFo);
-      autoSellMX(accountInFo);
-    }
-  }, [accountInFo]);
+    setInterval(() => {
+      if (
+        accesskey &&
+        apiSecret &&
+        symbolSearch &&
+        start &&
+        accountInFo?.accountType
+      ) {
+        console.log(
+          "🚀 ~ setInterval ~ accountInFo?.accountType 708:",
+          accountInFo?.accountType,
+          start,
+          apiSecret,
+          accesskey
+        );
+        getPriceCurrentCoin();
+      }
+    }, 1000);
+  }, [start, symbolSearch, apiSecret, accesskey, accountInFo?.accountType]);
 
   useEffect(() => {
     if (!start) {
       return;
     }
-    if (idOrderBuy && accesskey && apiSecret && symbolSearch) {
-      const getOrderById = async () => {
-        const responseOrderData = await axios.get("/api/getOrderById", {
-          params: {
-            accesskey,
-            apiSecret,
-            orderId: idOrderBuy,
-            symbol: symbolSearch.toUpperCase(),
-          },
-        });
-        if (responseOrderData.status === 200) {
-          setResponseOrderData(responseOrderData.data);
-        }
-      };
-
-      setInterval(() => {
+    setInterval(() => {
+      if (idOrderBuy && accesskey && apiSecret && symbolSearch) {
         getOrderById();
-      }, 2500);
-    }
-  }, [idOrderBuy, start]);
+      }
+    }, 2500);
+  }, [idOrderBuy, start, accesskey, symbolSearch]);
 
   useEffect(() => {
-    if (symbol.length > 0) {
-      setTimeout(() => {
+    setTimeout(() => {
+      if (symbol.length > 0) {
         setSymbolSearch(symbol);
-      }, 500);
-    }
+      }
+    }, 500);
   }, [symbol]);
 
   return (
     <div
       className={`flex flex-col ${
         focus ? "bg-sky-950" : "bg-slate-600"
-      }  justify-center  mr-10 w-1/2 pb-5`}
+      }  justify-center  mr-10 w-full pb-5`}
     >
       {loading && <LoadingOverlay />}
       <div className="flex flex-col ml-5 mt-4">
@@ -856,6 +920,15 @@ const BuySellComponent = () => {
             />
 
             <div className="flex w-4/5  mt-4 flex-col justify-end">
+              <h4 className="text-rose-600 text-xl mt-1">
+                Số lượng có :{" "}
+                {(accountInFo?.balances?.length &&
+                  accountInFo?.balances?.find(
+                    (balance: any, _: any) =>
+                      balance?.asset === symbol.toUpperCase()
+                  )?.free) ||
+                  "0"}
+              </h4>
               <button
                 onClick={() => {
                   setFocus(true);
@@ -870,7 +943,7 @@ const BuySellComponent = () => {
                   }
                   handleSellCoin();
                 }}
-                className="hover:bg-red-500 w-full  self-end bg-red-600 rounded-md p-3"
+                className="hover:bg-red-500 w-full mt-2 self-end bg-red-600 rounded-md p-3"
               >
                 SELL
               </button>
@@ -886,21 +959,24 @@ const BuySellComponent = () => {
       <div className="flex w-full h-2 bg-white"></div>
       <div className="px-2">
         <div className="flex justify-between">
-          <button
-            disabled={loading}
-            className="px-9 py-2 hover:bg-amber-500 bg-amber-600 mt-2 rounded-md"
-            onClick={() => {
-              setFocus(true);
-              if (!accesskey || !apiSecret || !symbol || !start) {
-                return alert(
-                  "Vui lòng nhập Assetkey , ApiKey và tên COIN sau đó nhấn START"
-                );
-              }
-              getPriceCoinAndCovertMX();
-            }}
-          >
-            ConvertMX
-          </button>
+          <div>
+            <button
+              disabled={loading}
+              className="px-9 py-2 hover:bg-amber-500 bg-amber-600 mt-2 rounded-md"
+              onClick={() => {
+                setFocus(true);
+                if (!accesskey || !apiSecret || !symbol || !start) {
+                  return alert(
+                    "Vui lòng nhập Assetkey , ApiKey và tên COIN sau đó nhấn START"
+                  );
+                }
+                getPriceCoinAndCovertMX();
+              }}
+            >
+              ConvertMX
+            </button>
+            {priceCurrentCoin && <p className="mt-2">{priceCurrentCoin}</p>}
+          </div>
 
           <button
             disabled={loading}
@@ -919,7 +995,7 @@ const BuySellComponent = () => {
             {(accountInFo?.balances?.length &&
               accountInFo?.balances?.find(
                 (balance: any, _: any) => balance?.asset === "MX"
-              ).free) ||
+              )?.free) ||
               "0"}
           </button>
           <p
