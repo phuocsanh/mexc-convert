@@ -7,6 +7,14 @@ import { containsDigitGreaterThanOrEqualTo2 } from "@/ultil";
 import { get } from "http";
 
 const BuySellComponent = () => {
+  const [symbol, setSymbol] = useState("BOMESS");
+  const [priceSell, setPriceSell] = useState("0.000000000000000003");
+  const [quantitySell, setQuantitySell] = useState("2499999999999999999");
+
+  const [network, setNetwork] = useState("OP");
+  const [addressWallet, setAddressWallet] = useState(
+    "0x580ea411a708b0f81e71cc44d75db5b7626494f7"
+  );
   const [accountName, setAccountName] = useState("");
   const [start, setStart] = useState(false);
   const [responseOrderData, setResponseOrderData] = useState<any>(null);
@@ -16,18 +24,14 @@ const BuySellComponent = () => {
   const [focus, setFocus] = useState(false);
   const [apiSecret, setApiSecret] = useState("");
   const [accesskey, setAccesskey] = useState("");
-  const [symbol, setSymbol] = useState("FANTOWN");
   const [symbolSearch, setSymbolSearch] = useState("");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
-  const [quantitySell, setQuantitySell] = useState("2499999999999999999999");
   const [quantityOrderSell, setQuantityOrderSell] = useState([]);
-  const [priceSell, setPriceSell] = useState("0.000000000000000000003");
   const [loading, setLoading] = useState(false);
 
-  const [network, setNetwork] = useState("");
   const [priceCurrentCoin, setPriceCurrentCoin] = useState("");
-  const [addressWallet, setAddressWallet] = useState("");
+
   const [quantityUSDTWithdraw, setQuantityUSDTWithdraw] = useState("");
   const [withdrawStatus, setWithdrawStatus] = useState("");
   const [historyConvertMX, setHistoryConvertMX] = useState(0);
@@ -690,7 +694,7 @@ const BuySellComponent = () => {
           getWidthdrawHistory();
         }
       }
-    }, 3000);
+    }, 5000);
   }, [
     isBtnSell,
     accesskey,
@@ -719,19 +723,19 @@ const BuySellComponent = () => {
         );
         getPriceCurrentCoin();
       }
-    }, 1000);
+    }, 3000);
   }, [start, symbolSearch, apiSecret, accesskey, accountInFo?.accountType]);
 
-  useEffect(() => {
-    if (!start) {
-      return;
-    }
-    setInterval(() => {
-      if (idOrderBuy && accesskey && apiSecret && symbolSearch) {
-        getOrderById();
-      }
-    }, 2500);
-  }, [idOrderBuy, start, accesskey, symbolSearch]);
+  // useEffect(() => {
+  //   if (!start) {
+  //     return;
+  //   }
+  //   setInterval(() => {
+  //     if (idOrderBuy && accesskey && apiSecret && symbolSearch) {
+  //       getOrderById();
+  //     }
+  //   }, 2500);
+  // }, [idOrderBuy, start, accesskey, symbolSearch]);
 
   useEffect(() => {
     setTimeout(() => {
